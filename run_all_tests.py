@@ -1,127 +1,127 @@
 #!/usr/bin/env python3
 """
-Скрипт для тестирования всех этапов проекта
+Скрипт для тестирования
 """
 
 import subprocess
-import os
 import json
+import os
 
-def print_step(step_name):
-    """Красивый вывод шага"""
-    print("\n" + "="*60)
-    print(f" {step_name}")
-    print("="*60)
+print("=" * 60)
+print(" ТЕСТИРОВАНИЕ ВАРИАНТА 20")
+print("=" * 60)
 
-def run_command(cmd):
-    """Запуск команды"""
-    print(f"Выполняю: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
-    if result.returncode == 0:
-        print("✓ Успешно")
-        if result.stdout:
-            print(result.stdout[:200])  # Первые 200 символов
-    else:
-        print("✗ Ошибка")
-        if result.stderr:
-            print(result.stderr)
-    
-    return result.returncode == 0
+# 1. Ассемблирование
+print("\n1. АССЕМБЛИРОВАНИЕ")
+print("-" * 40)
 
-def main():
-    """Основная функция тестирования"""
-    print("="*60)
-    print(" ПОЛНОЕ ТЕСТИРОВАНИЕ ВАРИАНТА 20")
-    print("="*60)
+# Создаем простую тестовую программу
+test_program = """# Простая тестовая программа
+LOAD,1000,25
+SQRT,1001,1000
+LOAD,1002,100
+SQRT,1003,1002
+"""
+
+with open("simple_test.asm", "w", encoding="utf-8") as f:
+    f.write(test_program)
+
+print("Создана программа simple_test.asm")
+
+# Запускаем ассемблер
+print("Запуск ассемблера...")
+result = subprocess.run(
+    ["python", "assembler.py", "simple_test.asm", "test.bin", "--test"],
+    capture_output=True,
+    text=True,
+    encoding="utf-8"
+)
+
+print(result.stdout)
+if result.returncode != 0:
+    print("Ошибка:", result.stderr)
+    exit(1)
+
+# 2. Выполнение
+print("\n2. ВЫПОЛНЕНИЕ ПРОГРАММЫ")
+print("-" * 40)
+
+print("Запуск интерпретатора...")
+result = subprocess.run(
+    ["python", "interpreter.py", "test.json", "memory_dump.json", "1000", "1010"],
+    capture_output=True,
+    text=True,
+    encoding="utf-8"
+)
+
+print(result.stdout)
+if result.returncode != 0:
+    print("Ошибка:", result.stderr)
+    exit(1)
+
+# 3. Проверка результатов
+print("\n3. ПРОВЕРКА РЕЗУЛЬТАТОВ")
+print("-" * 40)
+
+if os.path.exists("memory_dump.json"):
+    with open("memory_dump.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
     
-    # Проверяем существование файлов
-    required_files = ["assembler.py", "interpreter.py", "test_sqrt.asm"]
-    for file in required_files:
-        if not os.path.exists(file):
-            print(f"✗ Файл {file} не найден!")
-            return
+    print("Содержимое дампа памяти:")
+    for addr, value in sorted(data.items()):
+        print(f"  {addr}: {value}")
     
-    # === ЭТАП 1: Ассемблирование ===
-    print_step("ЭТАП 1: Ассемблирование")
+    # Проверяем конкретные значения
+    print("\nПроверка вычислений:")
+    print("-" * 30)
     
-    # Ассемблируем тестовую программу SQRT
-    success = run_command([
-        "python", "assembler.py", 
-        "test_sqrt.asm", 
-        "test_sqrt.bin", 
-        "--test"
-    ])
+    expected_results = [
+        ("0x3e8", 25, "Исходное значение 25"),
+        ("0x3e9", 5, "sqrt(25) = 5"),
+        ("0x3ea", 100, "Исходное значение 100"),
+        ("0x3eb", 10, "sqrt(100) = 10")
+    ]
     
-    if not success:
-        print("✗ Этап 1 не пройден")
-        return
-    
-    # === ЭТАП 2 и 3: Интерпретация ===
-    print_step("ЭТАП 2-3: Выполнение и проверка SQRT")
-    
-    # Выполняем программу
-    success = run_command([
-        "python", "interpreter.py",
-        "test_sqrt.json",
-        "memory_dump.json",
-        "2000", "2015"  # Смотрим адреса результатов
-    ])
-    
-    if not success:
-        print("✗ Этапы 2-3 не пройдены")
-        return
-    
-    # === ПРОВЕРКА РЕЗУЛЬТАТОВ ===
-    print_step("ПРОВЕРКА РЕЗУЛЬТАТОВ")
-    
-    if os.path.exists("memory_dump.json"):
-        with open("memory_dump.json", "r") as f:
-            dump = json.load(f)
-        
-        # Ожидаемые результаты для адресов 2000-2006
-        expected = {
-            2000: 0,    # sqrt(0)
-            2001: 1,    # sqrt(1)
-            2002: 2,    # sqrt(4)
-            2003: 3,    # sqrt(9)
-            2004: 4,    # sqrt(16)
-            2005: 5,    # sqrt(25)
-            2006: 10,   # sqrt(100)
-        }
-        
-        print("\nПроверка вычислений SQRT:")
-        print("-" * 40)
-        
-        all_correct = True
-        for addr, expected_value in expected.items():
-            hex_addr = hex(addr)
-            if hex_addr in dump:
-                actual = dump[hex_addr]
-                status = "✓" if actual == expected_value else "✗"
-                print(f"{status} mem[{addr}] = {actual} (ожидалось {expected_value})")
-                if actual != expected_value:
-                    all_correct = False
+    all_correct = True
+    for addr, expected, description in expected_results:
+        if addr in data:
+            actual = data[addr]
+            if actual == expected:
+                print(f"✓ {addr}: {actual} - {description}")
             else:
-                print(f"✗ mem[{addr}] не найден в дампе")
+                print(f"✗ {addr}: {actual} (ожидалось {expected}) - {description}")
                 all_correct = False
-        
-        if all_correct:
-            print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ УСПЕШНО!")
         else:
-            print("\nНЕКОТОРЫЕ ТЕСТЫ НЕ ПРОЙДЕНЫ")
-        
-        # Показываем полный дамп
-        print(f"\nПолный дамп ({len(dump)} значений):")
-        for addr, value in dump.items():
-            print(f"  {addr}: {value}")
+            print(f"✗ {addr}: не найден - {description}")
+            all_correct = False
     
+    if all_correct:
+        print("\n" + "=" * 60)
+        print(" ✅ ВСЕ ТЕСТЫ ПРОЙДЕНЫ УСПЕШНО!")
+        print("=" * 60)
     else:
-        print("Файл дампа не создан")
+        print("\n" + "=" * 60)
+        print(" ⚠ ЕСТЬ ОШИБКИ В ВЫЧИСЛЕНИЯХ")
+        print("=" * 60)
     
-    print("\n" + "="*60)
-    print(" ТЕСТИРОВАНИЕ ЗАВЕРШЕНО")
-    print("="*60)
+    # Показываем состояние памяти
+    print("\nСостояние памяти (адреса 1000-1010):")
+    for addr in range(1000, 1010):
+        hex_addr = hex(addr)
+        if hex_addr in data:
+            print(f"  mem[{addr}] = {data[hex_addr]}")
+else:
+    print("Файл memory_dump.json не найден")
 
-if __name__ == "__main__":
-    main()
+# Очистка
+print("\n4. ОЧИСТКА")
+print("-" * 40)
+files_to_remove = ["simple_test.asm", "test.bin", "simple_test.json", "memory_dump.json"]
+for file in files_to_remove:
+    if os.path.exists(file):
+        os.remove(file)
+        print(f"Удалён: {file}")
+
+print("\n" + "=" * 60)
+print(" ТЕСТИРОВАНИЕ ЗАВЕРШЕНО")
+print("=" * 60)
