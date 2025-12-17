@@ -36,7 +36,7 @@ def assemble(source_path, output_bin_path, test_mode=False):
     
     instructions = []
     
-    # Чтение исходного файла
+    # Чтение исходного файла с указанием кодировки
     with open(source_path, "r", encoding="utf-8") as f:
         for line_num, line in enumerate(f, 1):
             try:
@@ -96,6 +96,7 @@ def assemble(source_path, output_bin_path, test_mode=False):
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Использование: python assembler.py <input.asm> <output.bin> [--test]")
+        print("Пример: python assembler.py test_sqrt.asm test.bin --test")
         sys.exit(1)
     
     source = sys.argv[1]
